@@ -67,7 +67,7 @@ jobs:
           echo "all files:"
           find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
           ls -lhaR out/arch/arm64/boot/
-		  
+
       - name: Upload Image
         uses: actions/upload-artifact@v4
         with:
@@ -75,7 +75,7 @@ jobs:
           path: ./kernel-tree/out/arch/arm64/boot/Image
           if-no-files-found: ignore
           retention-days: 7
-		  
+
       - name: Upload Image.gz
         uses: actions/upload-artifact@v4
         with:
@@ -83,7 +83,7 @@ jobs:
           path: ./kernel-tree/out/arch/arm64/boot/Image.gz
           if-no-files-found: ignore
           retention-days: 7
-		  
+
       - name: Upload dtb
         uses: actions/upload-artifact@v4
         with:
@@ -91,7 +91,7 @@ jobs:
           path: ./kernel-tree/out/arch/arm64/boot/dtb
           if-no-files-found: ignore
           retention-days: 7
-		  
+
       - name: Upload dtbo.img
         uses: actions/upload-artifact@v4
         with:
@@ -99,7 +99,6 @@ jobs:
           path: ./kernel-tree/out/arch/arm64/boot/dtbo.img
           if-no-files-found: ignore
           retention-days: 7
-		  
 
   # package_anykernel:
   #   needs: build
