@@ -1,0 +1,176 @@
+name: alioth-redline
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      KERNEL_TREE:
+        description: 'Kernel Tree'
+        default: 'https://github.com/Migu-Kernel/kernel_xiaomi_sm8250'
+        required: true
+      ANYKERNEL_URL:
+        description: 'AnyKernel Url (leave blank if you dont want AnyKernel)'
+        default: 'https://github.com/Migu-Kernel/anykernel3'
+        required: false
+      COMPILER:
+        description: 'Choose compiler'
+        required: true
+        type: choice
+        options:
+          - neutron
+          - aosp
+          - aosp-21
+        default: aosp
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      UPLOAD_TO_RELEASE: false
+
+    steps:
+      - name: Install Dependencies
+        run: sudo apt install flex libncurses6
+
+      - name: Download & Extract Clang
+        run: |
+          if [[ "${{ github.event.inputs.COMPILER }}" == "aosp" ]]; then
+            wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz -O clang.tar.gz
+            mkdir clang
+            tar -xf clang.tar.gz -C clang
+          elif [[ "${{ github.event.inputs.COMPILER }}" == "aosp-21" ]]; then
+            wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/ebcc6c3bef363bc539ea39f45b6abae1dce6ff1a/clang-r574158.tar.gz -O clang.tar.gz
+            mkdir clang
+            tar -xf clang.tar.gz -C clang
+          else
+            wget https://github.com/Neutron-Toolchains/clang-build-catalogue/releases/download/10032024/neutron-clang-10032024.tar.zst -O clang.tar.zst
+            mkdir clang
+            unzstd -d clang.tar.zst
+            tar -xf clang.tar -C clang
+          fi
+
+      - name: Clone Repo
+        run: |
+          git clone --depth=1 --recurse-submodules ${{ github.event.inputs.KERNEL_TREE }} kernel_tree
+
+      - name: Build Kernel
+        run: |
+          export PATH="$(pwd)/clang/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=ARM64
+          export KBUILD_BUILD_USER="ncpt"
+          export KBUILD_BUILD_HOST="revolution"
+          export KBUILD_BUILD_TIMESTAMP="$(TZ=UTC-7 date)"
+          cd kernel_tree
+          make O=out alioth_defconfig
+          make O=out CC=clang -j$(nproc --all) CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
+          echo "all files:"
+          find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
+          ls -lhaR out/arch/arm64/boot/
+		  
+      - name: Upload Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image
+          path: ./kernel-tree/out/arch/arm64/boot/Image
+          if-no-files-found: ignore
+          retention-days: 7
+		  
+      - name: Upload Image.gz
+        uses: actions/upload-artifact@v4
+        with:
+          name: Image
+          path: ./kernel-tree/out/arch/arm64/boot/Image.gz
+          if-no-files-found: ignore
+          retention-days: 7
+		  
+      - name: Upload dtb
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtb
+          path: ./kernel-tree/out/arch/arm64/boot/dtb
+          if-no-files-found: ignore
+          retention-days: 7
+          
+      - name: Upload dtbo.img
+        uses: actions/upload-artifact@v4
+        with:
+          name: dtbo.img
+          path: ./kernel-tree/out/arch/arm64/boot/dtbo.img
+          if-no-files-found: ignore
+          retention-days: 7
+		  
+
+  # package_anykernel:
+  #   needs: build
+  #   strategy:
+  #     matrix:
+  #       kernel: [1, 2, 3]
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Download Kernel Build Image
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: kernel-${{ matrix.kernel }}-base
+  #         path: kernel-${{ matrix.kernel }}-base
+
+  #     - name: Download Kernel Build Addon 1
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: kernel-part-1-addon
+  #         path: kernel-part-1-addon
+
+  #     - name: Download Kernel Build Addon 2
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: kernel-part-2-addon
+  #         path: kernel-part-2-addon
+
+  #     - name: Download Kernel Build Addon 3
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: kernel-part-3-addon
+  #         path: kernel-part-3-addon
+
+  #     - name: Download Kernel Build Addon 4
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: kernel-part-4-addon
+  #         path: kernel-part-4-addon
+
+  #     - name: Clone AnyKernel3
+  #       run: git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b main AnyKernel3-${{ matrix.kernel }}
+
+  #     - name: Move Kernel Files to AnyKernel3
+  #       run: |
+  #         mv kernel-${{ matrix.kernel }}-base/* AnyKernel3-${{ matrix.kernel }}/
+  #         mv kernel-part-1-addon/* AnyKernel3-${{ matrix.kernel }}/
+  #         mv kernel-part-2-addon/* AnyKernel3-${{ matrix.kernel }}/
+  #         mv kernel-part-3-addon/* AnyKernel3-${{ matrix.kernel }}/
+  #         mv kernel-part-4-addon/* AnyKernel3-${{ matrix.kernel }}/
+
+  #     - name: Define ZIP Name
+  #       run: |
+  #         COMPILED_DATE=$(date +%Y%m%d)
+  #         EXTRA=""
+  #         if [[ "${{ github.event.inputs.OPLUS_FEATURES }}" == "yes" ]]; then
+  #           EXTRA="-OPLUS"
+  #         fi
+  #         if [[ "${{ matrix.kernel }}" == "1" ]]; then
+  #           echo "ZIP_NAME=[FD-][next-${{ github.event.inputs.CODENAME }}-${COMPILED_DATE}${EXTRA}]" >> $GITHUB_ENV
+  #         elif [[ "${{ matrix.kernel }}" == "2" ]]; then
+  #           echo "ZIP_NAME=[FD-][susfs-${{ github.event.inputs.CODENAME }}-${COMPILED_DATE}${EXTRA}]" >> $GITHUB_ENV
+  #         else
+  #           echo "ZIP_NAME=[FD-][noksu-${{ github.event.inputs.CODENAME }}-${COMPILED_DATE}${EXTRA}]" >> $GITHUB_ENV
+  #         fi
+      
+  #     - name: Upload Flashable Kernel Zip
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: ${{ env.ZIP_NAME }}
+  #         path: |
+  #           AnyKernel3-${{ matrix.kernel }}/
+  #           !AnyKernel3-${{ matrix.kernel }}/.git
+  #           !AnyKernel3-${{ matrix.kernel }}/.github
+      
