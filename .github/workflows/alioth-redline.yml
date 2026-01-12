@@ -20,7 +20,7 @@ on:
           - neutron
           - aosp
           - aosp-21
-        default: aosp-21
+        default: aosp
 
 jobs:
   build:
@@ -72,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Image
-          path: ./kernel-tree/out/arch/arm64/boot/Image
+          path: ./kernel_tree/out/arch/arm64/boot/Image
           if-no-files-found: ignore
           retention-days: 7
 
@@ -80,7 +80,7 @@ jobs:
       #   uses: actions/upload-artifact@v4
       #   with:
       #     name: Image
-      #     path: ./kernel-tree/out/arch/arm64/boot/Image.gz
+      #     path: ./kernel_tree/out/arch/arm64/boot/Image.gz
       #     if-no-files-found: ignore
       #     retention-days: 7
 
@@ -88,7 +88,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dtb
-          path: ./kernel-tree/out/arch/arm64/boot/dtb
+          path: ./kernel_tree/out/arch/arm64/boot/dtb
           if-no-files-found: ignore
           retention-days: 7
 
@@ -96,7 +96,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dtbo.img
-          path: ./kernel-tree/out/arch/arm64/boot/dtbo.img
+          path: ./kernel_tree/out/arch/arm64/boot/dtbo.img
           if-no-files-found: ignore
           retention-days: 7
           
@@ -105,9 +105,9 @@ jobs:
 
       - name: Move Kernel Files to AnyKernel3
         run: |
-          mv ./kernel-tree/out/arch/arm64/boot/Image anykernel/
-          mv ./kernel-tree/out/arch/arm64/boot/dtb anykernel/
-          mv ./kernel-tree/out/arch/arm64/boot/dtbo.img anykernel/
+          mv ./kernel_tree/out/arch/arm64/boot/Image anykernel/
+          mv ./kernel_tree/out/arch/arm64/boot/dtb anykernel/
+          mv ./kernel_tree/out/arch/arm64/boot/dtbo.img anykernel/
 
       - name: Define ZIP Name
         run: |
