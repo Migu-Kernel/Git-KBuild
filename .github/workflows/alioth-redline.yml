@@ -20,7 +20,7 @@ on:
           - neutron
           - aosp
           - aosp-21
-        default: aosp
+        default: aosp-21
 
 jobs:
   build:
@@ -30,7 +30,20 @@ jobs:
 
     steps:
       - name: Install Dependencies
-        run: sudo apt install flex libncurses6
+        run: |
+          sudo apt-get update -y 
+          sudo apt-get install -y \
+          build-essential git curl wget bison flex zip bc \
+          cpio libssl-dev libncurses-dev gcc \
+          python3 python3-pip
+          sudo apt update
+          sudo apt install -y software-properties-common
+          apt policy python2
+          sudo apt install -y python2
+          python2 --version
+          curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
+          sudo python2.7 get-pip.py
+          pip2.7 --version
 
       - name: Download & Extract Clang
         run: |
@@ -64,8 +77,8 @@ jobs:
           cd kernel_tree
           make O=out alioth_defconfig
           make O=out CC=clang -j$(nproc --all) CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 LLVM_IAS=1
-          echo "all files:"
           find out/arch/arm64/boot/dts -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb
+          echo "all files:"
           ls -lhaR out/arch/arm64/boot/
 
       - name: Upload Image
@@ -76,13 +89,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload Image.gz
-        uses: actions/upload-artifact@v4
-        with:
-          name: Image
-          path: ./kernel-tree/out/arch/arm64/boot/Image.gz
-          if-no-files-found: ignore
-          retention-days: 7
+      # - name: Upload Image.gz
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: Image
+      #     path: ./kernel-tree/out/arch/arm64/boot/Image.gz
+      #     if-no-files-found: ignore
+      #     retention-days: 7
 
       - name: Upload dtb
         uses: actions/upload-artifact@v4
@@ -99,77 +112,28 @@ jobs:
           path: ./kernel-tree/out/arch/arm64/boot/dtbo.img
           if-no-files-found: ignore
           retention-days: 7
+          
+      - name: Clone AnyKernel3
+        run: git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b main anykernel
 
-  # package_anykernel:
-  #   needs: build
-  #   strategy:
-  #     matrix:
-  #       kernel: [1, 2, 3]
-  #   runs-on: ubuntu-latest
+      - name: Move Kernel Files to AnyKernel3
+        run: |
+          mv ./kernel-tree/out/arch/arm64/boot/Image anykernel/
+          mv ./kernel-tree/out/arch/arm64/boot/dtb anykernel/
+          mv ./kernel-tree/out/arch/arm64/boot/dtbo.img anykernel/
 
-  #   steps:
-  #     - name: Download Kernel Build Image
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: kernel-${{ matrix.kernel }}-base
-  #         path: kernel-${{ matrix.kernel }}-base
+      - name: Define ZIP Name
+        run: |
+          COMPILED_DATE=$(date +%Y%m%d)
+          echo "ZIP_NAME=Migu-${COMPILED_DATE}" >> $GITHUB_ENV
 
-  #     - name: Download Kernel Build Addon 1
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: kernel-part-1-addon
-  #         path: kernel-part-1-addon
-
-  #     - name: Download Kernel Build Addon 2
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: kernel-part-2-addon
-  #         path: kernel-part-2-addon
-
-  #     - name: Download Kernel Build Addon 3
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: kernel-part-3-addon
-  #         path: kernel-part-3-addon
-
-  #     - name: Download Kernel Build Addon 4
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: kernel-part-4-addon
-  #         path: kernel-part-4-addon
-
-  #     - name: Clone AnyKernel3
-  #       run: git clone --recursive --depth=1 ${{ github.event.inputs.ANYKERNEL_URL }} -b main AnyKernel3-${{ matrix.kernel }}
-
-  #     - name: Move Kernel Files to AnyKernel3
-  #       run: |
-  #         mv kernel-${{ matrix.kernel }}-base/* AnyKernel3-${{ matrix.kernel }}/
-  #         mv kernel-part-1-addon/* AnyKernel3-${{ matrix.kernel }}/
-  #         mv kernel-part-2-addon/* AnyKernel3-${{ matrix.kernel }}/
-  #         mv kernel-part-3-addon/* AnyKernel3-${{ matrix.kernel }}/
-  #         mv kernel-part-4-addon/* AnyKernel3-${{ matrix.kernel }}/
-
-  #     - name: Define ZIP Name
-  #       run: |
-  #         COMPILED_DATE=$(date +%Y%m%d)
-  #         EXTRA=""
-  #         if [[ "${{ github.event.inputs.OPLUS_FEATURES }}" == "yes" ]]; then
-  #           EXTRA="-OPLUS"
-  #         fi
-  #         if [[ "${{ matrix.kernel }}" == "1" ]]; then
-  #           echo "ZIP_NAME=[FD-][next-${{ github.event.inputs.CODENAME }}-${COMPILED_DATE}${EXTRA}]" >> $GITHUB_ENV
-  #         elif [[ "${{ matrix.kernel }}" == "2" ]]; then
-  #           echo "ZIP_NAME=[FD-][susfs-${{ github.event.inputs.CODENAME }}-${COMPILED_DATE}${EXTRA}]" >> $GITHUB_ENV
-  #         else
-  #           echo "ZIP_NAME=[FD-][noksu-${{ github.event.inputs.CODENAME }}-${COMPILED_DATE}${EXTRA}]" >> $GITHUB_ENV
-  #         fi
-      
-  #     - name: Upload Flashable Kernel Zip
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: ${{ env.ZIP_NAME }}
-  #         path: |
-  #           AnyKernel3-${{ matrix.kernel }}/
-  #           !AnyKernel3-${{ matrix.kernel }}/.git
-  #           !AnyKernel3-${{ matrix.kernel }}/.github
+      - name: Upload Flashable Kernel Zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: |
+            anykernel/
+            !anykernel/.git
+            !anykernel/.github
+          retention-days: 30
       
